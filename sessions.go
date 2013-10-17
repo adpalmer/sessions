@@ -160,9 +160,37 @@ func (s *Registry) Get(store Store, name string) (session *Session, err error) {
 
 // Save saves all sessions registered for the current request.
 func (s *Registry) Save(w http.ResponseWriter) error {
+	return s.saveModify(w, nil)
+}
+
+// Deletes all sessions used during the current request.
+func (s *Registry) Delete(w http.ResponseWriter) error {
+	return s.saveModify(w, markDelete)
+}
+
+// function type to modify session
+type sessionModifier func(*Session) error
+
+// marks a session for deletion by setting sessions MaxAge to -1
+func markDelete(s *Session) error {
+	s.Options.MaxAge = -1
+	return nil
+}
+
+// method that takes responseWriter and sessionModifier function to
+// pulled out of Registry's Save method to follow DRY principle
+func (s *Registry) saveModify(w http.ResponseWriter, f sessionModifier) error {
 	var errMulti MultiError
 	for name, info := range s.sessions {
 		session := info.s
+		// check if passed function is nil, if not call it and check for errors
+		if f != nil {
+			if err := f(session); err != nil {
+				errMulti = append(errMulti, fmt.Errorf(
+					"sessions: error modifying session %q -- %v", name, err))
+			}
+		}
+
 		if session.store == nil {
 			errMulti = append(errMulti, fmt.Errorf(
 				"sessions: missing store for session %q", name))
@@ -186,6 +214,11 @@ func init() {
 // Save saves all sessions used during the current request.
 func Save(r *http.Request, w http.ResponseWriter) error {
 	return GetRegistry(r).Save(w)
+}
+
+// Deletes all sessions used during the current request.
+func Delete(r *http.Request, w http.ResponseWriter) error {
+	return GetRegistry(r).Delete(w)
 }
 
 // NewCookie returns an http.Cookie with the options set. It also sets
