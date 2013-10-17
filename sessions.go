@@ -93,6 +93,12 @@ func (s *Session) Save(r *http.Request, w http.ResponseWriter) error {
 	return s.store.Save(r, w, s)
 }
 
+// Delete is a convenience method to delete this session.
+func (s *Session) Delete(r *http.Request, w http.ResponseWriter) error {
+	s.Options.MaxAge = -1
+	return s.store.Save(r, w, s)
+}
+
 // Name returns the name used to register the session.
 func (s *Session) Name() string {
 	return s.name
